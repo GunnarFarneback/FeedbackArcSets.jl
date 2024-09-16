@@ -56,8 +56,6 @@ FeedbackArcSets started as a spin-off from
 
 * Add option to use LP instead of IP for non-optimal search.
 
-* Pick up cycles to add as constraints in a smarter way.
-
 * Add support for weighted edges.
 
 * Generalize to other solvers than Cbc. This should be more or less

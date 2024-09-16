@@ -18,7 +18,7 @@ import Clp
 import Cbc
 using Graphs: Graphs, SimpleDiGraph, add_edge!, edges, has_edge, has_self_loops,
               ne, nv, outneighbors, rem_edge!, simplecycles_iter,
-              simplecycles_limited_length, vertices
+              simplecycles_limited_length, vertices, a_star
 using Printf: Printf, @printf
 using SparseArrays: SparseArrays, SparseVector, spzeros
 
@@ -106,17 +106,11 @@ function find_feedback_arc_set(graph;
     end
 
     O, edges = OptProblem(graph)
-    reverse_edges = Dict(edges[k] => k for k = 1:length(edges))
 
-    # There is no way getting around adding constraints for length 2
-    # cycles, so may as well do it right away.
-    cycles = simplecycles_limited_length(graph, 2)
-    # We must have at least one cycle constraint so we have something
-    # to optimize.
-    if isempty(cycles)
-        cycles = simplecycles_iter(graph, 4)
-    end
-    # No cycles found, return the trivial optimum.
+    cycles = short_cycles_through_given_edges(graph,
+                                              fast_feedback_arc_set(graph))
+
+    # If no cycles found, return the trivial optimum.
     if isempty(cycles)
         return FeedbackArcSet(0, Tuple{Int, Int}[], Dict{String, Any}())
     end
@@ -325,10 +319,19 @@ function extract_arc_set_and_cycles(graph, edges, solution)
         end
     end
 
-    append!(arc_set, fast_feedback_arc_set(graph2))
-    cycles = simplecycles_iter(graph2, 4)
+    additional_arcs = fast_feedback_arc_set(graph2)
+    append!(arc_set, additional_arcs)
+    cycles = short_cycles_through_given_edges(graph2, additional_arcs)
 
     return arc_set, cycles
+end
+
+# Given that (v, w) is part of at least one cycle, we can find the
+# shortest cycle it is part of by computing the shortest path from w
+# to v.
+function short_cycles_through_given_edges(graph, edges)
+    return [vcat(w, [e.dst for e in a_star(graph, w, v)])
+            for (v, w) in edges]
 end
 
 # Add constraints derived from cycles in the graph. The constraints
