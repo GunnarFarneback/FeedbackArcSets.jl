@@ -12,7 +12,7 @@ an optimal solution within available time, `FeedbackArcSets` can
 return the smallest found feedback arc set together with a provable
 lower bound for the smallest feedback arc set.
 
-At this time two search functions are provided:
+## Exact Algorithm
 
     find_feedback_arc_set(graph; kwargs...)
 
@@ -22,12 +22,25 @@ optimal feedback arc set, a lower bound on the smallest feedback arc
 set is returned together with the best solution found. See the
 docstring for keyword arguments and return values.
 
-    fast_feedback_arc_set(graph)
+## Heuristic Algorithms
 
-Returns a non-optimal (and probably rather far from optimum) feedback
-arc set for a directed Graphs.jl `graph`. This is primarily intended
-for internal use but could be useful if you don't need a very good
-solution.
+These all work with a directed graph from the `Graphs` package and
+return a best effort feedback arc set. The algorithms are listed in
+order of increasing runtime and normally the size of the feedback arc
+set decreases accordingly. All of them are much faster than finding
+the exact solution.
+
+    dfs_feedback_arc_set(graph)
+
+Runs a DFS and returns the back edges as a feedback arc set.
+
+    greedy_feedback_arc_set(graph; randomize = true)
+
+Uses the greedy algorithm of Eades, Lin & Smyth [1].
+
+    pagerank_feedback_arc_set(graph; num_iterations = 5)
+
+Uses the Page Rank based algorithm of Geladaris, Lionakis & Tollis [2].
 
 ## Adding FeedbackArcSets
 
@@ -61,3 +74,14 @@ FeedbackArcSets started as a spin-off from
 * Generalize to other solvers than Cbc. This should be more or less
   straightforward, but is at the moment hindered by an absence of
   licenses for commercial solvers like Gurobi or CPLEX.
+
+## References
+
+[1] A fast and effective heuristic for the feedback arc set problem.
+P Eades, X Lin, WF Smyth. Information processing letters 47 (6),
+319-323, 1993.
+
+[2] Computing a feedback arc set using pagerank.
+V Geladaris, P Lionakis, IG Tollis.
+International Symposium on Graph Drawing and Network Visualization,
+2022. Springer
