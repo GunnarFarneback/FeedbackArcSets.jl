@@ -58,8 +58,6 @@ FeedbackArcSets started as a spin-off from
 
 ## TODO
 
-* Add tests.
-
 * Make it configurable whether self-loops should be an error, ignored,
   or included in the feedback arc set.
 
