@@ -16,15 +16,15 @@ export FeedbackArcSet, find_feedback_arc_set, dfs_feedback_arc_set,
        greedy_feedback_arc_set, pagerank_feedback_arc_set,
        is_feedback_arc_set
 
-import Clp
-import Cbc
 using Graphs: Graphs, SimpleDiGraph, add_edge!, edges, has_edge, has_self_loops,
               ne, nv, outneighbors, rem_edge!, simplecycles_iter,
               simplecycles_limited_length, vertices, a_star,
               inneighbors, outneighbors, indegree, outdegree,
               strongly_connected_components, induced_subgraph, is_cyclic
 using Printf: Printf, @printf
-using SparseArrays: SparseArrays, SparseVector, spzeros
+
+include("optimization.jl")
+include("cbc.jl")
 
 """
     FeedbackArcSet
@@ -195,121 +195,6 @@ function print_iteration_data(data)
     return true
 end
 
-struct CycleConstraint
-    A::SparseVector
-    lb::Int
-    ub::Int
-end
-
-# l and u are lower and upper bounds on the variables, i.e. the edges.
-mutable struct OptProblem
-    c::Vector{Float64}
-    l::Vector{Int}
-    u::Vector{Int}
-    vartypes::Vector{Symbol}
-    cycle_constraints::Vector{CycleConstraint}
-end
-
-function OptProblem(graph)
-    N = nv(graph)
-    M = ne(graph)
-
-    l = zeros(Int, M)
-    u = ones(Int, M)
-    vartypes = fill(:Bin, M)
-    edge_variables = Tuple{Int, Int}[]
-
-    for n = 1:N
-        for k in outneighbors(graph, n)
-            push!(edge_variables, (n, k))
-        end
-    end
-
-    c = ones(Float64, M)
-
-    return (OptProblem(c, l, u, vartypes, CycleConstraint[]),
-            edge_variables)
-end
-
-mutable struct Solution
-    status
-    objval
-    sol
-    attrs
-end
-
-function solve_IP(O::OptProblem, initial_solution = Int[],
-                  use_warmstart = true; options...)
-    model = Cbc.Cbc_newModel()
-    Cbc.Cbc_setParameter(model, "logLevel", "0")
-    for (name, value) in options
-        Cbc.Cbc_setParameter(model, string(name), string(value))
-    end
-
-    A, lb, ub = add_cycle_constraints_to_formulation(O)
-    cbc_loadproblem!(model, A, O.l, O.u, O.c, lb, ub)
-    Cbc.Cbc_setObjSense(model, 1) # Minimize
-
-    for i in 1:size(A, 2)
-        Cbc.Cbc_setInteger(model, i - 1)
-    end
-    if !isempty(initial_solution) && use_warmstart
-        Cbc.Cbc_setMIPStartI(model, length(initial_solution),
-                             collect(Cint.(eachindex(initial_solution) .- 1)),
-                             Float64.(initial_solution))
-    end
-    Cbc.Cbc_solve(model)
-   
-    attrs = Dict()
-    attrs[:objbound] = Cbc.Cbc_getBestPossibleObjValue(model)
-    attrs[:solver] = :ip
-    solution = Solution(cbc_status(model), Cbc.Cbc_getObjValue(model),
-                        copy(unsafe_wrap(Array,
-                                         Cbc.Cbc_getColSolution(model),
-                                         (size(A, 2),))),
-                        attrs)
-    Cbc.Cbc_deleteModel(model)
-    return solution
-end
-
-function cbc_loadproblem!(model, A, l, u, c, lb, ub)
-    Cbc.Cbc_loadProblem(model, size(A, 2), size(A, 1),
-                        Cbc.CoinBigIndex.(A.colptr .- 1),
-                        Int32.(A.rowval .- 1),
-                        Float64.(A.nzval),
-                        Float64.(l), Float64.(u), Float64.(c),
-                        Float64.(lb), Float64.(ub))
-end
-
-function cbc_status(model)
-    for (predicate, value) in ((Cbc.Cbc_isProvenOptimal, :Optimal),
-                               (Cbc.Cbc_isProvenInfeasible, :Infeasible),
-                               (Cbc.Cbc_isContinuousUnbounded, :Unbounded),
-                               (Cbc.Cbc_isNodeLimitReached, :UserLimit),
-                               (Cbc.Cbc_isSecondsLimitReached, :UserLimit),
-                               (Cbc.Cbc_isSolutionLimitReached, :UserLimit),
-                               (Cbc.Cbc_isAbandoned, :Error))
-        predicate(model) != 0 && return value
-    end
-    return :InternalError
-end
-
-function add_cycle_constraints_to_formulation(O::OptProblem)
-    n = length(O.cycle_constraints)
-    m = length(first(O.cycle_constraints).A)
-    A = spzeros(Int, n, m)
-    lb = zeros(Int, n)
-    ub = zeros(Int, n)
-    i = 1
-    for c in O.cycle_constraints
-        A[i,:] = c.A
-        lb[i] = c.lb
-        ub[i] = c.ub
-        i += 1
-    end
-    return A, lb, ub
-end
-
 # Extract the possibly partial feedback arc set from the solution and
 # find some additional cycles if it is incomplete.
 function extract_arc_set_and_cycles(graph, edges, solution)
@@ -336,29 +221,6 @@ end
 function short_cycles_through_given_edges(graph, edges)
     return [vcat(w, [e.dst for e in a_star(graph, w, v)])
             for (v, w) in edges]
-end
-
-# Add constraints derived from cycles in the graph. The constraints
-# just say that for each listed cycle, at least one edge must be
-# included in the solution.
-function constrain_cycles!(O::OptProblem, cycles, edges)
-    previous_number_of_constraints = length(O.cycle_constraints)
-    for cycle in cycles
-        A = spzeros(Int, length(edges))
-        cycle_edges = [(cycle[i], cycle[mod1(i + 1, length(cycle))])
-                       for i in 1:length(cycle)]
-        for i = 1:length(edges)
-            v1, v2 = edges[i]
-            if (v1, v2) in cycle_edges
-                A[i] = 1
-            end
-        end
-        lb = 1
-        ub = length(cycle)
-        push!(O.cycle_constraints, CycleConstraint(A, lb, ub))
-    end
-
-    return length(O.cycle_constraints) - previous_number_of_constraints
 end
 
 # Compute a fast feedback arc set. This doesn't have to produce a
