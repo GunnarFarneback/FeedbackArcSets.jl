@@ -25,6 +25,7 @@ using Printf: Printf, @printf
 
 include("optimization.jl")
 include("cbc.jl")
+include("highs.jl")
 
 """
     FeedbackArcSet
@@ -67,6 +68,9 @@ solution.
 * `time_limit`: Stop search after this number of seconds. Defaults to
   a very high number.
 
+* `solver`: IP solver. Currently `"cbc"` (default) and `"highs"` are
+  supported.
+
 * `solver_time_limit`: Maximum time to spend in each iteration to
   solve integer programs. This will be gradually increased if the IP
   solver does not find a useful solution in the allowed time. Defaults
@@ -96,6 +100,7 @@ following fields:
 function find_feedback_arc_set(graph;
                                max_iterations = typemax(Int),
                                time_limit = typemax(Int),
+                               solver = "cbc",
                                solver_time_limit = 10,
                                log_level = 1,
                                iteration_callback = print_iteration_data)
@@ -134,7 +139,8 @@ function find_feedback_arc_set(graph;
             break
         end
 
-        solution = solve_IP(O, seconds = solver_time,
+        solution = solve_IP(O; solver,
+                            seconds = solver_time,
                             allowableGap = 0,
                             logLevel = max(0, log_level - 1))
         
@@ -179,7 +185,7 @@ function find_feedback_arc_set(graph;
         constrain_cycles!(O, cycles, edges)
     end
 
-    return FeedbackArcSet(lower_bound, best_arc_set,
+    return FeedbackArcSet(ceil(Int, lower_bound - 0.01), best_arc_set,
                           Dict("O" => O, "edges" => edges,
                                "last_arcs" => arc_set,
                                "last_cycles" => cycles,

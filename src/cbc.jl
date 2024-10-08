@@ -1,7 +1,7 @@
 import Clp
 import Cbc
 
-function solve_IP(O::OptProblem, initial_solution = Int[],
+function solve_IP(::Val{:cbc}, O::OptProblem, initial_solution = Int[],
                   use_warmstart = true; options...)
     model = Cbc.Cbc_newModel()
     Cbc.Cbc_setParameter(model, "logLevel", "0")

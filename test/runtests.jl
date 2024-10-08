@@ -1,4 +1,4 @@
-using Test: @test, @testset
+using Test: @testset, @test, @test_throws
 using FeedbackArcSets: find_feedback_arc_set, dfs_feedback_arc_set,
                        greedy_feedback_arc_set, pagerank_feedback_arc_set,
                        is_feedback_arc_set
@@ -59,9 +59,22 @@ end
 end
 
 # Tournament graphs have one edge between each pair of vertices. The
-# construction below has no particular properties, it's only meant to
+# construction below has no particular properties. It's only meant to
 # produce a deterministic and not entirely trivial tournament graph.
-#
+function tournament_graph(n)
+    g = SimpleDiGraph(n)
+    for i = 1:n
+        for j = (i + 1):n
+            if mod(i^2 + j^3, 5) > 2
+                add_edge!(g, i, j)
+            else
+                add_edge!(g, j, i)
+            end
+        end
+    end
+    return g
+end
+
 # Larger tournament graphs are demanding to find minimal feedback arc
 # sets in but for the tested sizes it can be done quickly, at least
 # with the construction used here.
@@ -71,16 +84,7 @@ end
 # for the smallest sizes.
 @testset "tournament graphs" begin
     for n = 3:24
-        g = SimpleDiGraph(n)
-        for i = 1:n
-            for j = (i + 1):n
-                if mod(i^2 + j^3, 5) > 2
-                    add_edge!(g, i, j)
-                else
-                    add_edge!(g, j, i)
-                end
-            end
-        end
+        g = tournament_graph(n)
         exact = find_feedback_arc_set(g, log_level = 0)
         @test exact.lower_bound == length(exact.feedback_arc_set)
         @test is_feedback_arc_set(g, exact.feedback_arc_set)
@@ -132,4 +136,25 @@ end
             @test isempty(f(g))
         end
     end
+end
+
+# Compare supported solvers.
+@testset "solvers" begin
+    graphs = vcat(go_game_graph.([1, 3, 7, 11, 15, 95, 127, 1111, 33983]),
+                  tournament_graph.(3:24))
+    for g in graphs
+        reference = -1
+        for solver in ["cbc", "highs"]
+            result = find_feedback_arc_set(g, log_level = 0; solver)
+            if reference < 0
+                reference = result.lower_bound
+            else
+                @test result.lower_bound == reference
+            end
+            @test is_feedback_arc_set(g, result.feedback_arc_set)
+            @test length(result.feedback_arc_set) == reference
+        end
+    end
+    @test_throws ErrorException find_feedback_arc_set(go_game_graph(1),
+                                                      solver = "")
 end
