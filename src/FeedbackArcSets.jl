@@ -144,10 +144,6 @@ function find_feedback_arc_set(graph;
                             allowableGap = 0,
                             logLevel = max(0, log_level - 1))
         
-        if solution.status != :Optimal
-            error("Non-optimal IP solutions are not supported yet.")
-        end
-
         objbound = solution.attrs[:objbound]
 
         arc_set, cycles = extract_arc_set_and_cycles(graph, edges, solution.sol)
@@ -157,6 +153,7 @@ function find_feedback_arc_set(graph;
         end
 
         lower_bound = max(lower_bound, objbound)
+        rounded_lower_bound = ceil(Int, lower_bound - 0.01)
 
         iteration_data = (log_level = log_level,
                           iteration = iteration,
@@ -178,8 +175,15 @@ function find_feedback_arc_set(graph;
             break
         end
 
-        if length(cycles) == 0
+        if length(best_arc_set) == rounded_lower_bound
+            # Optimum found.
             break
+        end
+
+        if length(cycles) == 0
+            # This can only happen if IP solver did not solve to
+            # optimality. Increase the solver time.
+            solver_time_limit *= 1.6
         end
 
         constrain_cycles!(O, cycles, edges)
