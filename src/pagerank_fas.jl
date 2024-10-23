@@ -1,4 +1,3 @@
-# TODO: Investigate performance and optimize.
 """
     pagerank_feedback_arc_set(graph; num_iterations = 5)
 
@@ -13,50 +12,56 @@ Computing a feedback arc set using pagerank.
 V Geladaris, P Lionakis, IG Tollis.
 International Symposium on Graph Drawing and Network Visualization, 2022.
 Springer
-
 """
 function pagerank_feedback_arc_set(graph; num_iterations = 5)
-    feedback_arc_set = Tuple{Int, Int}[]
-
-    # TODO: Package up the various arrays into structs.
-    edge_src = [e.src for e in edges(graph)]
-    edge_dst = [e.dst for e in edges(graph)]
-    edge_fadj = [Int[] for _ in 1:nv(graph)]
-    for (i, e) in enumerate(edges(graph))
-        push!(edge_fadj[e.src], i)
-    end
-    edges_list = collect(1:ne(graph))
-    vertex_ranks = zeros(nv(graph))
-    edge_ranks = zeros(ne(graph))
-    outdegrees = zeros(Int, nv(graph))
-
+    g = EdgeSubGraph(graph)
+    feedback_arc_set = Int[]
     component_stack = Vector{Int}[]
-    edges_ind = fill(false, ne(graph))
+    tarjan_workspace = TarjanWorkspace(g)
+    pagerank_workspace = PagerankWorkspace(g)
 
-    index = zeros(Int, nv(graph))
-    lowlink = zeros(Int, nv(graph))
-    tarjan_stack = Int[]
-    dfs_stack = Int[]
+    # Split the graph into strongly connected edge components. The
+    # feedback arc set does not need any edges going between
+    # components and each component can be analyzed in isolation.
+    edge_tarjan!(component_stack, g, tarjan_workspace)
 
-    edge_tarjan!(component_stack, edge_src, edge_dst, edge_fadj, edges_list,
-                 edges_ind, index, lowlink, tarjan_stack, dfs_stack)
-
+    # Analyze the components one after the other. This involves
+    # finding one edge to add to the feedback arc set and remove from
+    # the component. At the end the component is split into new
+    # connected edge components and those are put on the stack. The
+    # process ends because eventually the remainder is acyclic and
+    # doesn't have any strongly connected edge components.
     while !isempty(component_stack)
-        s = pop!(component_stack)
-        if length(s) == 2
-            push!(feedback_arc_set, (edge_src[s[1]], edge_dst[s[1]]))
+        component = pop!(component_stack)
+        @show length(component)
+        if length(component) == 2
+            # A component of size two can only be a single cycle of
+            # length two and either edge must go into the feedback arc
+            # set.
+            push!(feedback_arc_set, first(component))
             continue
         end
 
-        i = highest_edge_pagerank(edge_src, edge_dst, s,
-                                  vertex_ranks, edge_ranks, outdegrees,
-                                  num_iterations)
-        e = (edge_src[i], edge_dst[i])
+        set_active_edges!(g, component)
+        e = highest_edge_pagerank(g, num_iterations, pagerank_workspace)
         push!(feedback_arc_set, e)
-        edge_tarjan!(component_stack, edge_src, edge_dst, edge_fadj,
-                     s, edges_ind, index, lowlink, tarjan_stack, dfs_stack, i)
+        deactivate_edge!(g, e)
+        edge_tarjan!(component_stack, g, tarjan_workspace)
     end
-    return feedback_arc_set
+
+    return vertex_tuple.(g, feedback_arc_set)
+end
+
+struct PagerankWorkspace
+    vertex_ranks::Vector{Float64}
+    edge_ranks::Vector{Float64}
+    outdegrees::Vector{Int}
+end
+
+function PagerankWorkspace(graph::EdgeSubGraph)
+    return PagerankWorkspace(zeros(Float64, nv(graph.parent)),
+                             zeros(Float64, ne(graph.parent)),
+                             zeros(Int, nv(graph.parent)))
 end
 
 # The pseudo-code in the paper explicitly creates a Line Graph and
@@ -64,33 +69,49 @@ end
 # rank directly on the edges of the original graph. Additionally it
 # doesn't normalize the initial ranks to sum to one, since that
 # doesn't matter for finding the maximum rank.
-function highest_edge_pagerank(edge_src, edge_dst, edges_list,
-                               vertex_ranks, edge_ranks, outdegrees,
-                               num_iterations)
+function highest_edge_pagerank(g::EdgeSubGraph, num_iterations,
+                               workspace::PagerankWorkspace)
+    (; vertex_ranks, edge_ranks, outdegrees) = workspace
+
     outdegrees .= 0
-    for e in edges_list
+    for e in edge_list(g)
         edge_ranks[e] = 1
-        outdegrees[edge_src[e]] += 1
+        outdegrees[edge_source(g, e)] += 1
     end
 
     for _ in 1:num_iterations
         vertex_ranks .= 0
-        for e in edges_list
-            vertex_ranks[edge_dst[e]] += edge_ranks[e]
+        for e in edge_list(g)
+            vertex_ranks[edge_destination(g, e)] += edge_ranks[e]
         end
-        for e in edges_list
-            edge_ranks[e] = vertex_ranks[edge_src[e]] / outdegrees[edge_src[e]]
+        for e in edge_list(g)
+            v = edge_source(g, e)
+            edge_ranks[e] = vertex_ranks[v] / outdegrees[v]
         end
     end
+
     max_rank = 0
     best_edge = 0
-    for e in edges_list
+    for e in edge_list(g)
         if edge_ranks[e] > max_rank
             max_rank = edge_ranks[e]
             best_edge = e
         end
     end
+
     return best_edge
+end
+
+struct TarjanWorkspace
+    index::Vector{Int}
+    lowlink::Vector{Int}
+    stack::Vector{Int}
+    dfs_stack::Vector{Int}
+end
+
+function TarjanWorkspace(graph::EdgeSubGraph)
+    n = nv(graph.parent)
+    return TarjanWorkspace(zeros(Int, n), zeros(Int, n), Int[], Int[])
 end
 
 # This is a modified version of Tarjan's algorithm to find strongly
@@ -112,16 +133,11 @@ end
 #
 # 3. Strongly connected components containing a single vertex
 #    correspond to an empty set of edges and can be ignored.
-function edge_tarjan!(components, edge_src, edge_dst, edge_fadj,
-                      edges_list, edges_ind, index, lowlink, stack,
-                      dfs_stack, forbidden = 0)
-    edges_ind .= false
-    for e in edges_list
-        edges_ind[e] = true
-    end
-    if forbidden != 0
-        edges_ind[forbidden] = false
-    end
+#
+# Nothing is returned from this function, components are pushed to the
+# `components` vector.
+function edge_tarjan!(components, g::EdgeSubGraph, workspace::TarjanWorkspace)
+    (; index, lowlink, stack, dfs_stack) = workspace
 
     # index 0 means unvisited, index > 0 means it is on the stack, and
     # index < 0 that it has already been collected.
@@ -131,8 +147,8 @@ function edge_tarjan!(components, edge_src, edge_dst, edge_fadj,
     lowlink .= 0
     next_index = 1
 
-    for e in edges_list
-        v = edge_src[e]
+    for e in edge_list(g)
+        v = edge_source(g, e)
         index[v] != 0 && continue
         push!(dfs_stack, v)
         while !isempty(dfs_stack)
@@ -144,9 +160,8 @@ function edge_tarjan!(components, edge_src, edge_dst, edge_fadj,
                 push!(stack, v)
             end
             vertex_done = true
-            for e in edge_fadj[v]
-                edges_ind[e] || continue
-                w = edge_dst[e]
+            for e in outedges(g, v)
+                w = edge_destination(g, e)
                 if index[w] == 0
                     push!(dfs_stack, w)
                     vertex_done = false
@@ -173,12 +188,10 @@ function edge_tarjan!(components, edge_src, edge_dst, edge_fadj,
                     while true
                         u = stack[end - i]
                         i += 1
-                        for e in edge_fadj[u]
-                            if edges_ind[e]
-                                w = edge_dst[e]
-                                if index[w] > 0
-                                    push!(component, e)
-                                end
+                        for e in outedges(g, u)
+                            w = edge_destination(g, e)
+                            if index[w] > 0
+                                push!(component, e)
                             end
                         end
                         u == v && break

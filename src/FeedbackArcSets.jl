@@ -26,6 +26,7 @@ using Printf: Printf, @printf
 include("optimization.jl")
 include("cbc.jl")
 include("highs.jl")
+include("edge_subgraph.jl")
 include("dfs_fas.jl")
 include("greedy_fas.jl")
 include("pagerank_fas.jl")
