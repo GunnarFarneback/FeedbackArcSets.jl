@@ -23,10 +23,10 @@ using Graphs: Graphs, SimpleDiGraph, add_edge!, edges, has_edge, has_self_loops,
               strongly_connected_components, induced_subgraph, is_cyclic
 using Printf: Printf, @printf
 
+include("edge_subgraph.jl")
 include("optimization.jl")
 include("cbc.jl")
 include("highs.jl")
-include("edge_subgraph.jl")
 include("dfs_fas.jl")
 include("greedy_fas.jl")
 include("pagerank_fas.jl")
@@ -106,14 +106,7 @@ following fields:
 * `internals`: Dict containing a variety of information about the search.
 
 """
-function find_feedback_arc_set(graph;
-                               self_loops = "error",
-                               max_iterations = typemax(Int),
-                               time_limit = typemax(Int),
-                               solver = "cbc",
-                               solver_time_limit = 10,
-                               log_level = 1,
-                               iteration_callback = print_iteration_data)
+function find_feedback_arc_set(graph; self_loops = "error", kwargs...)
     self_loops ∈ ["error", "ignore", "include"] ||
         error("`self_loops` must be one of \"error\", \"ignore\", \"include\".")
 
@@ -131,7 +124,25 @@ function find_feedback_arc_set(graph;
         end
     end
 
-    O, edges = OptProblem(graph)
+    edge_graph = EdgeSubGraph(graph)
+
+    solution = find_feedback_arc_set_ip(edge_graph; kwargs...)
+
+    if self_loops == "include"
+        append!(solution.feedback_arc_set, removed_self_loops)
+    end
+
+    return solution
+end
+
+function find_feedback_arc_set_ip(graph::EdgeSubGraph;
+                                  max_iterations = typemax(Int),
+                                  time_limit = typemax(Int),
+                                  solver = "cbc",
+                                  solver_time_limit = 10,
+                                  log_level = 1,
+                                  iteration_callback = print_iteration_data)
+    O = OptProblem(graph)
 
     cycles = short_cycles_through_given_edges(graph,
                                               dfs_feedback_arc_set(graph))
@@ -141,7 +152,7 @@ function find_feedback_arc_set(graph;
         return FeedbackArcSet(0, Tuple{Int, Int}[], Dict{String, Any}())
     end
 
-    constrain_cycles!(O, cycles, edges)
+    constrain_cycles!(O, cycles)
 
     lower_bound = 1
     solution = nothing
@@ -163,7 +174,7 @@ function find_feedback_arc_set(graph;
         
         objbound = solution.attrs[:objbound]
 
-        arc_set, cycles = extract_arc_set_and_cycles(graph, edges, solution.sol)
+        arc_set, cycles = extract_arc_set_and_cycles(graph, solution.sol)
 
         if length(arc_set) < length(best_arc_set)
             best_arc_set = arc_set
@@ -203,15 +214,12 @@ function find_feedback_arc_set(graph;
             solver_time_limit *= 1.6
         end
 
-        constrain_cycles!(O, cycles, edges)
+        constrain_cycles!(O, cycles)
     end
 
-    if self_loops == "include"
-        append!(best_arc_set, removed_self_loops)
-    end
-
-    return FeedbackArcSet(ceil(Int, lower_bound - 0.01), best_arc_set,
-                          Dict("O" => O, "edges" => edges,
+    return FeedbackArcSet(ceil(Int, lower_bound - 0.01),
+                          vertex_tuple.(graph, best_arc_set),
+                          Dict("O" => O, "edge_graph" => graph,
                                "last_arcs" => arc_set,
                                "last_cycles" => cycles,
                                "last_solution" => solution))
@@ -228,20 +236,21 @@ end
 
 # Extract the possibly partial feedback arc set from the solution and
 # find some additional cycles if it is incomplete.
-function extract_arc_set_and_cycles(graph, edges, solution)
-    graph2 = SimpleDiGraph(nv(graph))
+function extract_arc_set_and_cycles(graph, solution)
+    saved_edges = copy(edge_list(graph))
     arc_set = []
-    for i = 1:length(solution)
-        if solution[i] < 0.5
-            add_edge!(graph2, edges[i]...)
-        else
-            push!(arc_set, edges[i])
+    for e in 1:length(solution)
+        if solution[e] >= 0.5
+            push!(arc_set, e)
+            deactivate_edge!(graph, e)
         end
     end
 
-    additional_arcs = dfs_feedback_arc_set(graph2)
+    additional_arcs = dfs_feedback_arc_set(graph)
     append!(arc_set, additional_arcs)
-    cycles = short_cycles_through_given_edges(graph2, additional_arcs)
+    cycles = short_cycles_through_given_edges(graph, additional_arcs)
+
+    set_active_edges!(graph, saved_edges)
 
     return arc_set, cycles
 end
@@ -250,8 +259,47 @@ end
 # shortest cycle it is part of by computing the shortest path from w
 # to v.
 function short_cycles_through_given_edges(graph, edges)
-    return [vcat(w, [e.dst for e in a_star(graph, w, v)])
-            for (v, w) in edges]
+    return [short_cycle_through_given_edge(graph, e) for e in edges]
+end
+
+function short_cycle_through_given_edge(graph, edge)
+    v = edge_source(graph, edge)
+    w = edge_destination(graph, edge)
+    cycle = [edge]
+    queue = [w]
+    edges = zeros(Int, nv(graph.parent))
+    offset = edge
+    while !isempty(queue)
+        u = popfirst!(queue)
+        n = length(graph.fadj[u])
+        for i in 1:n
+            # There are usually multiple paths of the same length. If
+            # we always add neighbors in the same order, some edges
+            # are more likely to be part of the returned cycle than
+            # others. This is problematic since more diversity
+            # improves the IP lower bound when the cycles are used as
+            # constraints. We obtain this diversity by offsetting the
+            # search order differently for each starting edge.
+            e = graph.fadj[u][mod1(i + offset, n)]
+            edge_is_active(graph, e) || continue
+            t = edge_destination(graph, e)
+            if t == v
+                edges[t] = e
+                empty!(queue)
+                break
+            elseif edges[t] == 0
+                edges[t] = e
+                push!(queue, t)
+            end
+        end
+    end
+    e = edges[v]
+    while true
+        pushfirst!(cycle, e)
+        edge_source(graph, e) == w && break
+        e = edges[edge_source(graph, e)]
+    end
+    return cycle
 end
 
 """

@@ -168,7 +168,7 @@ end
     add_edge!(g, 1, 1)
     add_edge!(g, 3, 3)
     @test_throws ErrorException find_feedback_arc_set(g)
-    @test find_feedback_arc_set(g, self_loops = "ignore").feedback_arc_set == [(1, 2)]
-    @test Set(find_feedback_arc_set(g, self_loops = "include").feedback_arc_set) == Set([(1, 2), (1, 1), (3, 3)])
+    @test find_feedback_arc_set(g, self_loops = "ignore", log_level = 0).feedback_arc_set == [(1, 2)]
+    @test Set(find_feedback_arc_set(g, self_loops = "include", log_level = 0).feedback_arc_set) == Set([(1, 2), (1, 1), (3, 3)])
     @test_throws ErrorException find_feedback_arc_set(g, self_loops = "")
 end

@@ -15,25 +15,16 @@ mutable struct OptProblem
     cycle_constraints::Vector{CycleConstraint}
 end
 
-function OptProblem(graph)
-    N = nv(graph)
-    M = ne(graph)
+function OptProblem(graph::EdgeSubGraph)
+    M = ne(graph.parent)
 
     l = zeros(Int, M)
-    u = ones(Int, M)
+    u = Int.(graph.active)
     vartypes = fill(:Bin, M)
-    edge_variables = Tuple{Int, Int}[]
-
-    for n = 1:N
-        for k in outneighbors(graph, n)
-            push!(edge_variables, (n, k))
-        end
-    end
 
     c = ones(Float64, M)
 
-    return (OptProblem(c, l, u, vartypes, CycleConstraint[]),
-            edge_variables)
+    return OptProblem(c, l, u, vartypes, CycleConstraint[])
 end
 
 mutable struct Solution
@@ -72,17 +63,12 @@ end
 # Add constraints derived from cycles in the graph. The constraints
 # just say that for each listed cycle, at least one edge must be
 # included in the solution.
-function constrain_cycles!(O::OptProblem, cycles, edges)
+function constrain_cycles!(O::OptProblem, cycles)
     previous_number_of_constraints = length(O.cycle_constraints)
     for cycle in cycles
-        A = spzeros(Int, length(edges))
-        cycle_edges = [(cycle[i], cycle[mod1(i + 1, length(cycle))])
-                       for i in 1:length(cycle)]
-        for i = 1:length(edges)
-            v1, v2 = edges[i]
-            if (v1, v2) in cycle_edges
-                A[i] = 1
-            end
+        A = spzeros(Int, length(O.c))
+        for edge in cycle
+            A[edge] = 1
         end
         lb = 1
         ub = length(cycle)

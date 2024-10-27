@@ -31,3 +31,28 @@ function _dfs_feedback_arc_set(graph, marks, feedback_arc_set, vertex)
     end
     marks[vertex] = 2
 end
+
+function dfs_feedback_arc_set(graph::EdgeSubGraph)
+    marks = zeros(nv(graph.parent))
+    feedback_arc_set = Int[]
+    for edge in edge_list(graph)
+        vertex = edge_source(graph, edge)
+        marks[vertex] == 0 || continue
+        _dfs_feedback_arc_set(graph, marks, feedback_arc_set, vertex)
+    end
+    return feedback_arc_set
+end
+
+function _dfs_feedback_arc_set(graph::EdgeSubGraph, marks, feedback_arc_set,
+                               vertex)
+    marks[vertex] = 1
+    for e in outedges(graph, vertex)
+        neighbor = edge_destination(graph, e)
+        if marks[neighbor] == 1
+            push!(feedback_arc_set, e)
+        elseif marks[neighbor] == 0
+            _dfs_feedback_arc_set(graph, marks, feedback_arc_set, neighbor)
+        end
+    end
+    marks[vertex] = 2
+end
