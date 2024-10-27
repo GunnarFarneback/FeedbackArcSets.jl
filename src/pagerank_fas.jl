@@ -33,7 +33,6 @@ function pagerank_feedback_arc_set(graph; num_iterations = 5)
     # doesn't have any strongly connected edge components.
     while !isempty(component_stack)
         component = pop!(component_stack)
-        @show length(component)
         if length(component) == 2
             # A component of size two can only be a single cycle of
             # length two and either edge must go into the feedback arc

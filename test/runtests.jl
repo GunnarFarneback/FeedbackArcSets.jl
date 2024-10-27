@@ -158,3 +158,17 @@ end
     @test_throws ErrorException find_feedback_arc_set(go_game_graph(1),
                                                       solver = "")
 end
+
+@testset "self-loops" begin
+    g = SimpleDiGraph(3)
+    add_edge!(g, 1, 2)
+    add_edge!(g, 2, 3)
+    add_edge!(g, 3, 1)
+    add_edge!(g, 2, 1)
+    add_edge!(g, 1, 1)
+    add_edge!(g, 3, 3)
+    @test_throws ErrorException find_feedback_arc_set(g)
+    @test find_feedback_arc_set(g, self_loops = "ignore").feedback_arc_set == [(1, 2)]
+    @test Set(find_feedback_arc_set(g, self_loops = "include").feedback_arc_set) == Set([(1, 2), (1, 1), (3, 3)])
+    @test_throws ErrorException find_feedback_arc_set(g, self_loops = "")
+end

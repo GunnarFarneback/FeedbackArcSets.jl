@@ -66,6 +66,11 @@ solution.
 
 *Keyword arguments:*
 
+* `self_loops`: What to do with self-loops in the graph. The options
+  are `"error"` to give an error, `"ignore"` to ignore them, or
+  `"include"` to include them in the feedback arc set. The default is
+  to give an error.
+
 * `max_iterations`: Stop search after this number of iterations.
   Defaults to a very high number.
 
@@ -102,18 +107,26 @@ following fields:
 
 """
 function find_feedback_arc_set(graph;
+                               self_loops = "error",
                                max_iterations = typemax(Int),
                                time_limit = typemax(Int),
                                solver = "cbc",
                                solver_time_limit = 10,
                                log_level = 1,
                                iteration_callback = print_iteration_data)
+    self_loops ∈ ["error", "ignore", "include"] ||
+        error("`self_loops` must be one of \"error\", \"ignore\", \"include\".")
+
     # Remove self loops if there are any.
+    removed_self_loops = Tuple{Int, Int}[]
     if has_self_loops(graph)
+        self_loops == "error" &&
+            error("Self-loops found in the graph. Remove them from the graph or use the `self_loops` keyword argument.")
         graph = copy(graph)
         for v in vertices(graph)
             if has_edge(graph, v, v)
                 rem_edge!(graph, v, v)
+                push!(removed_self_loops, (v, v))
             end
         end
     end
@@ -191,6 +204,10 @@ function find_feedback_arc_set(graph;
         end
 
         constrain_cycles!(O, cycles, edges)
+    end
+
+    if self_loops == "include"
+        append!(best_arc_set, removed_self_loops)
     end
 
     return FeedbackArcSet(ceil(Int, lower_bound - 0.01), best_arc_set,
