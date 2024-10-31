@@ -14,7 +14,7 @@ module FeedbackArcSets
 
 export FeedbackArcSet, find_feedback_arc_set, dfs_feedback_arc_set,
        greedy_feedback_arc_set, pagerank_feedback_arc_set,
-       is_feedback_arc_set
+       is_feedback_arc_set, baharev_benchmark
 
 using Graphs: Graphs, SimpleDiGraph, add_edge!, edges, has_edge, has_self_loops,
               ne, nv, outneighbors, rem_edge!, simplecycles_iter,
@@ -30,6 +30,7 @@ include("highs.jl")
 include("dfs_fas.jl")
 include("greedy_fas.jl")
 include("pagerank_fas.jl")
+include("benchmarks.jl")
 
 """
     FeedbackArcSet

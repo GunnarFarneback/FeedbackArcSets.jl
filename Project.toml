@@ -8,6 +8,7 @@ Clp = "e2554f3b-3117-50c0-817c-e040a3ddf72d"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Scratch = "6c6a2e73-6563-6170-7368-637461726353"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
@@ -15,6 +16,8 @@ Cbc = "1"
 Clp = "1"
 GoGameGraphs = "1"
 Graphs = "1.4"
+HiGHS = "1.10"
+Scratch = "1.2"
 julia = "1.6"
 
 [extras]
