@@ -27,6 +27,7 @@ include("edge_subgraph.jl")
 include("optimization.jl")
 include("cbc.jl")
 include("highs.jl")
+include("jump.jl")
 include("dfs_fas.jl")
 include("greedy_fas.jl")
 include("pagerank_fas.jl")
@@ -142,7 +143,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
                                   solver = "cbc",
                                   solver_time_limit = 10,
                                   log_level = 1,
-                                  iteration_callback = print_iteration_data)
+                                  iteration_callback = print_iteration_data, kwargs...)
     O = OptProblem(graph)
 
     cycles = short_cycles_through_given_edges(graph,
@@ -171,7 +172,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
         solution = solve_IP(O; solver,
                             seconds = solver_time,
                             allowableGap = 0,
-                            logLevel = max(0, log_level - 1))
+                            logLevel = max(0, log_level - 1), kwargs...)
         
         objbound = solution.attrs[:objbound]
 
