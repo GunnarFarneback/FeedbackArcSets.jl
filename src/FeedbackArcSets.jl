@@ -14,7 +14,8 @@ module FeedbackArcSets
 
 export FeedbackArcSet, find_feedback_arc_set, dfs_feedback_arc_set,
        greedy_feedback_arc_set, pagerank_feedback_arc_set,
-       is_feedback_arc_set, baharev_benchmark
+       is_feedback_arc_set,
+       baharev_benchmark, dasdan_benchmark, snap_benchmark
 
 using Graphs: Graphs, SimpleDiGraph, add_edge!, edges, has_edge, has_self_loops,
               ne, nv, outneighbors, rem_edge!, simplecycles_iter,
