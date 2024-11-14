@@ -20,7 +20,7 @@ function solve_IP(::Val{:jump}, O::OptProblem, initial_solution = Int[],
     JuMP.optimize!(model)
 
     if !JuMP.is_solved_and_feasible(model)
-        error("Problem not solve and feasible.")
+        error("Problem not solved or feasible.")
     end
 
     attrs = Dict()
