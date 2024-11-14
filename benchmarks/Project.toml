@@ -1,8 +1,11 @@
 [deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 Git = "d7ba0133-e1db-5d97-8f8c-041e4b3a1eb2"
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 Inflate = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
 NaturalSort = "c020b1a1-e9b0-503a-9c33-f039bfc54a85"
+NautyGraphs = "7509a0a4-015a-4167-b44b-0799a1a2605e"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 Scratch = "6c6a2e73-6563-6170-7368-637461726353"
 ZipArchives = "49080126-0e18-4c2a-b176-c102e4b3760c"

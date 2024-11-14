@@ -317,3 +317,62 @@ end
 snap_benchmark(n::Integer) = only(snap_benchmark([n]))
 snap_benchmark(name::AbstractString) = only(snap_benchmark([name]))
 snap_benchmark() = snap_benchmark(Returns(true))
+
+struct SmallGraphsBenchmark
+    graph::SimpleDiGraph
+end
+
+function Base.show(io::IO, bench::SmallGraphsBenchmark)
+    v = nv(bench.graph)
+    e = ne(bench.graph)
+    print(io, "SmallGraphsBenchmark: $v vertices, $e edges")
+end
+
+"""
+    small_graphs_benchmark()
+
+Return all 569, up to isomorphism, strongly connected graphs with 2 to
+8 edges.
+
+The return value is a vector of structs with the field:
+* `graph`: The graph in the form of a `Graphs.SimpleDiGraph`.
+
+    small_graphs_benchmark(index::Integer)
+
+Return a single benchmark with the given `index` in the full set of
+benchmarks.
+
+    small_graphs_benchmark(indices::AbstractVector{<:Integer})
+
+Return a selection of benchmarks with the given `indices`.
+
+# Examples:
+    small_graphs_benchmark(13)
+    small_graphs_benchmark(1:5)
+"""
+function small_graphs_benchmark(selection::AbstractVector{<:Integer})
+    data_dir = @get_scratch!("small_graphs")
+    index_file = joinpath(data_dir, "index.txt")
+    data_file = joinpath(data_dir, "graphs.bin")
+
+    if !isfile(index_file)
+        install_script = abspath(@__DIR__, "..", "benchmarks",
+                                 "install_benchmark_data.jl")
+        error("The small_graphs benchmark data (5 kB) has not been installed." *
+              " Please run `julia $(install_script)` to install it." *
+              " It may take some time to generate it.")
+    end
+
+    encoded_graphs = reinterpret(UInt64, read(data_file))
+    return decode_small_graph.(encoded_graphs[selection])
+end
+
+small_graphs_benchmark(n::Integer) = only(small_graphs_benchmark([n]))
+small_graphs_benchmark() = small_graphs_benchmark(1:569)
+
+function decode_small_graph(x)
+    num_vertices = ceil(Int, sqrt(log2(x)))
+    adj = reshape((x .>> (0:(num_vertices^2 -1))) .& 1,
+                  num_vertices, num_vertices)
+    return SimpleDiGraph(adj)
+end
