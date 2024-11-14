@@ -141,9 +141,12 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
                                   max_iterations = typemax(Int),
                                   time_limit = typemax(Int),
                                   solver = "cbc",
+                                  solver_options = Dict(
+                                    "allowableGap" => 0,
+                                    "relativeGap" => 0),
                                   solver_time_limit = 10,
                                   log_level = 1,
-                                  iteration_callback = print_iteration_data, kwargs...)
+                                  iteration_callback = print_iteration_data)
     O = OptProblem(graph)
 
     cycles = short_cycles_through_given_edges(graph,
@@ -170,9 +173,11 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
         end
 
         solution = solve_IP(O; solver,
-                            seconds = solver_time,
-                            allowableGap = 0,
-                            logLevel = max(0, log_level - 1), kwargs...)
+                            solver_options = merge(Dict(solver_options),
+                                Dict(
+                                    "seconds" => solver_time,
+                                    "logLevel" => max(0, log_level - 1)),
+                                ))
         
         objbound = solution.attrs[:objbound]
 

@@ -2,15 +2,14 @@ import JuMP
 using JuMP: MOI, @variable, @constraint, @objective
 
 function solve_IP(::Val{:jump}, O::OptProblem, initial_solution = Int[],
-                  use_warmstart = true; options...)
+                  use_warmstart = true; solver_options, options...)
 
-    options_dict = Dict(options)
-    optimizer = pop!(options_dict, :optimizer)
+    optimizer = pop!(solver_options, "optimizer")
     model = JuMP.direct_model(MOI.instantiate(optimizer));
     JuMP.set_string_names_on_creation(model, false)
 
-    # Pass through remaining options:
-    set_JuMP_options!(model, options_dict)
+    # Pass through solver options:
+    set_JuMP_options!(model, Dict(solver_options))
 
     A, lb, ub = add_cycle_constraints_to_formulation(O)
     JuMP_loadproblem!(model, A, O.l, O.u, O.c, lb, ub)
@@ -37,17 +36,21 @@ end
 
 function set_JuMP_options!(model::JuMP.Model, options_dict::Dict)
 
-    if :seconds in keys(options_dict)
-        JuMP.set_time_limit_sec(model, Float64(pop!(options_dict, :seconds)))
+    if haskey(options_dict, "seconds")
+        JuMP.set_time_limit_sec(model, Float64(pop!(options_dict, "seconds")))
     end
 
-    if :allowableGap in keys(options_dict)
-        JuMP.set_attribute(model, MOI.RelativeGapTolerance(), Float64(pop!(options_dict, :allowableGap)))
+    if haskey(options_dict, "allowableGap")
+        JuMP.set_attribute(model, MOI.AbsoluteGapTolerance(), Float64(pop!(options_dict, "allowableGap")))
     end
 
-    if :logLevel in keys(options_dict)
-        log_value = pop!(options_dict, :logLevel)
-        if isinteger(log_value) && (iszero(log_value) || log_value < 0)
+    if haskey(options_dict, "relativeGap")
+        JuMP.set_attribute(model, MOI.RelativeGapTolerance(), Float64(pop!(options_dict, "relativeGap")))
+    end
+
+    if haskey(options_dict, "logLevel")
+        log_value = pop!(options_dict, "logLevel")
+        if isinteger(log_value) && (log_value < 0 || iszero(log_value))
             @info "Solver logging set to silent."
             JuMP.set_silent(model)
         end
