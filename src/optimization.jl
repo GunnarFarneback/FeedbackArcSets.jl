@@ -34,10 +34,11 @@ mutable struct Solution
     attrs
 end
 
-function solve_IP(O::OptProblem; solver, solver_options, initial_solution = Int[],
-                  use_warmstart = true, options...)
-    solve_IP(Val(Symbol(solver)), O, initial_solution, use_warmstart;
-             solver_options, options...)
+function solve_IP(O::OptProblem; solver, solver_options,
+                  initial_solution = Int[], use_warmstart = true,
+                  solver_time, log_level)
+    solve_IP(Val(Symbol(lowercase(solver))), O, initial_solution, use_warmstart;
+             solver_options, solver_time, log_level)
 end
 
 function solve_IP(solver::Val{T}, args...; kwargs...) where T

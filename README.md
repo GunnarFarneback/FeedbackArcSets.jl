@@ -22,6 +22,18 @@ optimal feedback arc set, a lower bound on the smallest feedback arc
 set is returned together with the best solution found. See the
 docstring for keyword arguments and return values.
 
+### IP solvers
+
+The exact algorithm require an IP solver. Currently supported options
+are to use CBC or HiGHS directly, or any solver available in JuMP.
+For the latter the backend optimizer must be passed as a
+`solver_option`. Examples:
+```
+find_feedback_arc_set(graph; solver = "cbc")
+find_feedback_arc_set(graph; solver = "jump",
+                      solver_options = Dict("optimizer" => HiGHS.Optimizer))
+```
+
 ## Heuristic Algorithms
 
 These all work with a directed graph from the `Graphs` package and
@@ -77,20 +89,11 @@ graphs can be handled than in the Baharev benchmarks. Use the
 
 ## TODO
 
-* Make it configurable whether self-loops should be an error, ignored,
-  or included in the feedback arc set.
-
 * Register in the General registry.
-
-* Handle non-optimal solutions from the IP solver.
 
 * Add option to use LP instead of IP for non-optimal search.
 
 * Add support for weighted edges.
-
-* Generalize to other solvers than Cbc. This should be more or less
-  straightforward, but is at the moment hindered by an absence of
-  licenses for commercial solvers like Gurobi or CPLEX.
 
 ## References
 

@@ -5,6 +5,7 @@ using FeedbackArcSets: find_feedback_arc_set, dfs_feedback_arc_set,
 using Graphs: path_digraph, cycle_digraph, complete_digraph, SimpleDiGraph,
               add_edge!, rem_edge!
 using GoGameGraphs: go_game_graph
+import HiGHS
 
 heuristic_methods = [dfs_feedback_arc_set,
                      greedy_feedback_arc_set,
@@ -138,14 +139,18 @@ end
     end
 end
 
-# Compare supported solvers.
+# Compare supported solvers. Test the JuMP interface with HiGHS.
 @testset "solvers" begin
     graphs = vcat(go_game_graph.([1, 3, 7, 11, 15, 95, 127, 1111, 33983]),
                   tournament_graph.(3:24))
+    solvers = [("cbc", Dict()),
+               ("highs", Dict()),
+               ("jump", Dict("optimizer" => HiGHS.Optimizer))]
     for g in graphs
         reference = -1
-        for solver in ["cbc", "highs"]
-            result = find_feedback_arc_set(g, log_level = 0; solver)
+        for (solver, solver_options) in solvers
+            result = find_feedback_arc_set(g, log_level = 0;
+                                           solver, solver_options)
             if reference < 0
                 reference = result.lower_bound
             else

@@ -82,6 +82,14 @@ solution.
 * `solver`: IP solver. Currently `"cbc"` (default) and `"highs"` are
   supported.
 
+* `solver_options`: Dictionary of options passed to the IP solver.
+  These are specific to the solver and override settings used by the
+  algorithm. In particular setting gaps can interfere with the
+  convergence of the search in non-obvious ways and setting time
+  limits can interfere with the time management.
+  When using the `jump` solver, the backend optimizer must be passed
+  with the `"optimizer"` key.
+
 * `solver_time_limit`: Maximum time to spend in each iteration to
   solve integer programs. This will be gradually increased if the IP
   solver does not find a useful solution in the allowed time. Defaults
@@ -141,9 +149,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
                                   max_iterations = typemax(Int),
                                   time_limit = typemax(Int),
                                   solver = "cbc",
-                                  solver_options = Dict(
-                                    "allowableGap" => 0,
-                                    "relativeGap" => 0),
+                                  solver_options = Dict{String, Any}(),
                                   solver_time_limit = 10,
                                   log_level = 1,
                                   iteration_callback = print_iteration_data)
@@ -172,12 +178,8 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
             break
         end
 
-        solution = solve_IP(O; solver,
-                            solver_options = merge(Dict(solver_options),
-                                Dict(
-                                    "seconds" => solver_time,
-                                    "logLevel" => max(0, log_level - 1)),
-                                ))
+        solution = solve_IP(O; solver, solver_options, solver_time,
+                            log_level = log_level - 1)
         
         objbound = solution.attrs[:objbound]
 
