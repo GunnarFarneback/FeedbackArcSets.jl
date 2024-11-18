@@ -2,10 +2,13 @@ import Clp
 import Cbc
 
 function solve_IP(::Val{:cbc}, O::OptProblem, initial_solution = Int[],
-                  use_warmstart = true; options...)
+                  use_warmstart = true; solver_options, solver_time, log_level)
     model = Cbc.Cbc_newModel()
-    Cbc.Cbc_setParameter(model, "logLevel", "0")
-    for (name, value) in options
+    Cbc.Cbc_setParameter(model, "logLevel", string(max(0, log_level)))
+    Cbc.Cbc_setParameter(model, "seconds", string(solver_time))
+    Cbc.Cbc_setParameter(model, "allowableGap", "0")
+
+    for (name, value) in solver_options
         Cbc.Cbc_setParameter(model, string(name), string(value))
     end
 

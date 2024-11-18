@@ -5,18 +5,14 @@ using HiGHS: Highs_create, Highs_setStringOptionValue, Highs_setSolution,
              Highs_getModelStatus, HighsInt
 
 function solve_IP(::Val{:highs}, O::OptProblem, initial_solution = Int[],
-                  use_warmstart = true; solver_options, options...)
+                  use_warmstart = true; solver_options, solver_time, log_level)
     model = Highs_create()
+    Highs_setStringOptionValue(model, "time_limit", string(solver_time))
+    Highs_setStringOptionValue(model, "mip_abs_gap", "0")
+    Highs_setStringOptionValue(model, "mip_rel_gap", "0")
+    Highs_setStringOptionValue(model, "log_to_console", string(log_level > 0))
+
     for (name, value) in solver_options
-        name = get(Dict("seconds" => "time_limit",
-                        "allowableGap" => "mip_abs_gap",
-                        "relativeGap"  => "mip_rel_gap",
-                        ),
-                   name, name)
-        if name == "logLevel"
-            name = "log_to_console"
-            value = value > 0
-        end
         Highs_setStringOptionValue(model, string(name), string(value))
     end
 

@@ -2,14 +2,27 @@ import JuMP
 using JuMP: MOI, @variable, @constraint, @objective
 
 function solve_IP(::Val{:jump}, O::OptProblem, initial_solution = Int[],
-                  use_warmstart = true; solver_options, options...)
-
-    optimizer = pop!(solver_options, "optimizer")
-    model = JuMP.direct_model(MOI.instantiate(optimizer));
+                  use_warmstart = true; solver_options, solver_time, log_level)
+    if !haskey(solver_options, "optimizer")
+        error("The `jump` IP solver requires the backend optimizer to be passed with key `\"optimizer\"` in `solver_options`.")
+    end
+    optimizer = solver_options["optimizer"]
+    model = JuMP.direct_model(MOI.instantiate(optimizer))
     JuMP.set_string_names_on_creation(model, false)
 
-    # Pass through solver options:
-    set_JuMP_options!(model, Dict(solver_options))
+    # Set default solver options needed by the algorithm. These can be
+    # overridden with explicit `solver_options` but that might
+    # interfere with convergence or time management.
+    JuMP.set_time_limit_sec(model, solver_time)
+    JuMP.set_attribute(model, MOI.AbsoluteGapTolerance(), 0.0)
+    JuMP.set_attribute(model, MOI.RelativeGapTolerance(), 0.0)
+    log_level <= 0 && JuMP.set_silent(model)
+
+    # Pass through solver options as raw attributes.
+    for (name, value) in solver_options
+        name == "optimizer" && continue
+        JuMP.set_attribute(model, string(name), value)
+    end
 
     A, lb, ub = add_cycle_constraints_to_formulation(O)
     JuMP_loadproblem!(model, A, O.l, O.u, O.c, lb, ub)
@@ -27,43 +40,11 @@ function solve_IP(::Val{:jump}, O::OptProblem, initial_solution = Int[],
     attrs[:objbound] = JuMP.objective_bound(model)
     attrs[:solver] = :ip
     attrs[:model] = model
-    status = JuMP.termination_status(model) 
+    status = JuMP.termination_status(model)
     objval = JuMP.objective_value(model)
     sol = JuMP.value.(model[:x])
     solution = Solution(status, objval, sol, attrs)
     return solution
-end
-
-function set_JuMP_options!(model::JuMP.Model, options_dict::Dict)
-
-    if haskey(options_dict, "seconds")
-        JuMP.set_time_limit_sec(model, Float64(pop!(options_dict, "seconds")))
-    end
-
-    if haskey(options_dict, "allowableGap")
-        JuMP.set_attribute(model, MOI.AbsoluteGapTolerance(), Float64(pop!(options_dict, "allowableGap")))
-    end
-
-    if haskey(options_dict, "relativeGap")
-        JuMP.set_attribute(model, MOI.RelativeGapTolerance(), Float64(pop!(options_dict, "relativeGap")))
-    end
-
-    if haskey(options_dict, "logLevel")
-        log_value = pop!(options_dict, "logLevel")
-        if isinteger(log_value) && (log_value < 0 || iszero(log_value))
-            @info "Solver logging set to silent."
-            JuMP.set_silent(model)
-        end
-    end
-
-    for (name, value) in options_dict
-        JuMP.set_attribute(model, string(name), value)
-    end
-
-    # for (name, value) in options
-    #     MOI.set(model, MOI.RawOptimizerAttribute(string(name)), value)
-    # end
-
 end
 
 function JuMP_loadproblem!(model, A, l, u, c, lb, ub)
