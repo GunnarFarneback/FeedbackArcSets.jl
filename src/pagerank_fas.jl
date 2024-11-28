@@ -4,7 +4,8 @@
 Compute a feedback arc set using the Page Rank based algorithm of
 Geladaris, Lionakis & Tollis. The number of page rank iterations can
 be controlled by `num_iterations` and defaults to 5, which is
-recommended by the paper.
+recommended by the paper. If the graph has self-loops, those are
+included in the returned feedback arc set.
 
 *Reference:*
 
@@ -14,6 +15,12 @@ International Symposium on Graph Drawing and Network Visualization, 2022.
 Springer
 """
 function pagerank_feedback_arc_set(graph; num_iterations = 5)
+    self_loops = Tuple{Int, Int}[]
+    if has_self_loops(graph)
+        graph = copy(graph)
+        remove_self_loops!(graph, self_loops)
+    end
+
     g = EdgeSubGraph(graph)
     feedback_arc_set = Int[]
     component_stack = Vector{Int}[]
@@ -48,7 +55,11 @@ function pagerank_feedback_arc_set(graph; num_iterations = 5)
         edge_tarjan!(component_stack, g, tarjan_workspace)
     end
 
-    return vertex_tuple.(g, feedback_arc_set)
+    if isempty(self_loops)
+        return vertex_tuple.(g, feedback_arc_set)
+    else
+        return vcat(self_loops, vertex_tuple.(g, feedback_arc_set))
+    end
 end
 
 struct PagerankWorkspace

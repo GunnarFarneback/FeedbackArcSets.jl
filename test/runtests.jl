@@ -174,6 +174,14 @@ end
     add_edge!(g, 3, 3)
     @test_throws ErrorException find_feedback_arc_set(g)
     @test find_feedback_arc_set(g, self_loops = "ignore", log_level = 0).feedback_arc_set == [(1, 2)]
+    @test find_feedback_arc_set(g, self_loops = "ignore", log_level = 0).lower_bound == 1
     @test Set(find_feedback_arc_set(g, self_loops = "include", log_level = 0).feedback_arc_set) == Set([(1, 2), (1, 1), (3, 3)])
+    @test find_feedback_arc_set(g, self_loops = "include", log_level = 0).lower_bound == 3
     @test_throws ErrorException find_feedback_arc_set(g, self_loops = "")
+    dfs_fas = dfs_feedback_arc_set(g)
+    greedy_fas = greedy_feedback_arc_set(g)
+    pagerank_fas = pagerank_feedback_arc_set(g)
+    @test (1, 1) in dfs_fas && (3, 3) in dfs_fas
+    @test (1, 1) in greedy_fas && (3, 3) in greedy_fas
+    @test (1, 1) in pagerank_fas && (3, 3) in pagerank_fas
 end

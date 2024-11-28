@@ -4,7 +4,8 @@
 Compute a feedback arc set using the greedy algorithm of Eades, Lin &
 Smyth. This implementation defaults to randomizing the choice of
 equivalently attractive edges. Setting `randomize = false` makes it
-deterministic.
+deterministic. If the graph has self-loops, those are included in the
+returned feedback arc set.
 
 *Reference:*
 
@@ -13,6 +14,13 @@ P Eades, X Lin, WF Smyth. Information processing letters 47 (6),
 319-323, 1993.
 """
 function greedy_feedback_arc_set(graph; randomize = true)
+    arc_set = Tuple{Int, Int}[]
+
+    if has_self_loops(graph)
+        graph = copy(graph)
+        remove_self_loops!(graph, arc_set)
+    end
+
     deltas = Dict{Int, Int}()
     prev = zeros(Int, nv(graph))
     next = zeros(Int, nv(graph))
@@ -30,8 +38,6 @@ function greedy_feedback_arc_set(graph; randomize = true)
         end
         push_delta!(deltas, prev, next, delta, v)
     end
-
-    arc_set = Tuple{Int, Int}[]
 
     while true
         if get(deltas, -2, 0) != 0
