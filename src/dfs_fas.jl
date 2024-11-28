@@ -4,7 +4,9 @@
 # return an empty arc set for an acyclic graph.
 #
 # The algorithm used here is to just run DFS until all vertices are
-# covered and include all found back edges into the feedback arc set.
+# covered and include all found back edges into the feedback arc
+# set. If the graph has self-loops, those are included in the returned
+# feedback arc set.
 """
     dfs_feedback_arc_set(graph)
 
@@ -20,6 +22,8 @@ function dfs_feedback_arc_set(graph)
     return feedback_arc_set
 end
 
+# TODO: Rewrite without recursion so it doesn't stack overflow for
+# deep graphs.
 function _dfs_feedback_arc_set(graph, marks, feedback_arc_set, vertex)
     marks[vertex] = 1
     for neighbor in outneighbors(graph, vertex)

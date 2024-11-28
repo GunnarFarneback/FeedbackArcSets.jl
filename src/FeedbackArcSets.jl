@@ -128,12 +128,7 @@ function find_feedback_arc_set(graph; self_loops = "error", kwargs...)
         self_loops == "error" &&
             error("Self-loops found in the graph. Remove them from the graph or use the `self_loops` keyword argument.")
         graph = copy(graph)
-        for v in vertices(graph)
-            if has_edge(graph, v, v)
-                rem_edge!(graph, v, v)
-                push!(removed_self_loops, (v, v))
-            end
-        end
+        remove_self_loops!(graph, removed_self_loops)
     end
 
     edge_graph = EdgeSubGraph(graph)
@@ -142,6 +137,7 @@ function find_feedback_arc_set(graph; self_loops = "error", kwargs...)
 
     if self_loops == "include"
         append!(solution.feedback_arc_set, removed_self_loops)
+        solution.lower_bound += length(removed_self_loops)
     end
 
     return solution
@@ -326,6 +322,16 @@ function is_feedback_arc_set(graph, arc_set)
         rem_edge!(graph, v, w)
     end
     return !is_cyclic(graph)
+end
+
+function remove_self_loops!(graph, self_loops)
+    for v in vertices(graph)
+        if has_edge(graph, v, v)
+            rem_edge!(graph, v, v)
+            push!(self_loops, (v, v))
+        end
+    end
+    return
 end
 
 end
