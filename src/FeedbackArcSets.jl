@@ -75,11 +75,21 @@ solution.
   `"include"` to include them in the feedback arc set. The default is
   to give an error.
 
-* `max_iterations`: Stop search after this number of iterations.
-  Defaults to a very high number.
+* `split`: Whether to apply graph splitting. If true the graph is
+  split into strongly connected components, which are analyzed
+  separately. Default is true but you might want to set it to false if
+  you know that the graph only consists of one component or to
+  simplify time management. Custom iteration callbacks may also be
+  simpler to manage without splitting.
 
-* `time_limit`: Stop search after this number of seconds. Defaults to
-  a very high number.
+* `max_iterations`: Stop search after this number of iterations. If
+  graph splitting is activated, the number of iterations applies to
+  each component. Defaults to a very high number.
+
+* `time_limit`: Stop search after this number of seconds. If graph
+  splitting is activated the remaining time is split proportionally to
+  the number of edges in the components, with a minimum of one
+  second. Defaults to a very high number.
 
 * `solver`: IP solver. Currently `"cbc"` (default) and `"highs"` are
   supported.
@@ -93,13 +103,15 @@ solution.
   with the `"optimizer"` key.
 
 * `solver_time_limit`: Maximum time to spend in each iteration to
-  solve integer programs. This will be gradually increased if the IP
-  solver does not find a useful solution in the allowed time. Defaults
-  to 10 seconds.
+  solve integer programs, measured in seconds. This will be gradually
+  increased if the IP solver does not find a useful solution in the
+  allowed time. Defaults to 10 seconds.
 
 * `log_level`: Amount of verbosity during search. 0 is maximally
-  quiet. The default value 1 only prints progress for each iteration.
-  Higher values add diagnostics from the IP solver calls.
+  quiet. Level 1 prints results of static analysis and if there are
+  multiple searches a summary of those. Level 2 adds printing of
+  progress for each search iteration. Higher values add diagnostics
+  from the IP solver calls. Default value is 2.
 
 * `iteration_callback`: A function provided here is called during each
   iteration. The function should take one argument which is a named
@@ -115,10 +127,17 @@ following fields:
 * `feedback_arc_set`: Vector of the edges in the smallest found
   feedback arc set.
 
-* `internals`: Dict containing a variety of information about the search.
+* `internals`: Dict containing a variety of information about the
+  search. If graph splitting is active, this information only applies
+  to the last searched component.
 
 """
-function find_feedback_arc_set(graph; self_loops = "error", kwargs...)
+function find_feedback_arc_set(graph;
+                               self_loops = "error",
+                               split = true,
+                               time_limit = typemax(Int),
+                               log_level = 2,
+                               kwargs...)
     self_loops ∈ ["error", "ignore", "include"] ||
         error("`self_loops` must be one of \"error\", \"ignore\", \"include\".")
 
@@ -132,8 +151,49 @@ function find_feedback_arc_set(graph; self_loops = "error", kwargs...)
     end
 
     edge_graph = EdgeSubGraph(graph)
+    solution = FeedbackArcSet(0, Tuple{Int, Int}[], Dict{String, Any}())
 
-    solution = find_feedback_arc_set_ip(edge_graph; kwargs...)
+    if split == false
+        solution = find_feedback_arc_set_ip(edge_graph; time_limit,
+                                            log_level, kwargs...)
+    else
+        start_time = time()
+        components = Vector{Int}[]
+        tarjan_workspace = TarjanWorkspace(edge_graph)
+        edge_tarjan!(components, edge_graph, tarjan_workspace)
+        sort!(components, by = length)
+        component_sizes = length.(components)
+        if log_level >= 1
+            for i in unique(component_sizes)
+                n = count(==(i), component_sizes)
+                println("Found $n component(s) of size $i")
+            end
+        end
+        lower_bound = 0
+        feedback_arcs = Tuple{Int, Int}[]
+        for (i, component) in enumerate(components)
+            set_active_edges!(edge_graph, component)
+            remaining_time = time_limit - (time()- start_time)
+            remaining_edges = sum(@view component_sizes[i:end])
+            work_fraction = component_sizes[i] / remaining_edges
+            time_quota = max(1, remaining_time * work_fraction)
+            if log_level >= 1
+                println("  Analyzing component $i of size $(component_sizes[i]):")
+            end
+            solution = find_feedback_arc_set_ip(edge_graph;
+                                                time_limit = time_quota,
+                                                log_level, kwargs...)
+            if log_level >= 1
+                lb = solution.lower_bound
+                ub = length(solution.feedback_arc_set)
+                println("    Bounds: [$(lb), $(ub)]")
+            end
+            lower_bound += solution.lower_bound
+            append!(feedback_arcs, solution.feedback_arc_set)
+        end
+        solution.lower_bound = lower_bound
+        solution.feedback_arc_set = feedback_arcs
+    end
 
     if self_loops == "include"
         append!(solution.feedback_arc_set, removed_self_loops)
@@ -149,7 +209,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
                                   solver = "cbc",
                                   solver_options = Dict{String, Any}(),
                                   solver_time_limit = 10,
-                                  log_level = 1,
+                                  log_level = 2,
                                   iteration_callback = print_iteration_data)
     O = OptProblem(graph)
 
@@ -172,12 +232,15 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
     
     for iteration = 1:max_iterations
         solver_time = min(solver_time_limit, time_limit - (time() - start_time))
-        if solver_time < solver_time_limit / 2 && iteration > 1
+        if (solver_time < solver_time_limit / 2
+            && iteration > 1
+            && time() - start_time > 0.5 * time_limit)
+
             break
         end
 
         solution = solve_IP(O; solver, solver_options, solver_time,
-                            log_level = log_level - 1)
+                            log_level = log_level - 2)
         
         objbound = solution.attrs[:objbound]
 
@@ -233,7 +296,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
 end
 
 function print_iteration_data(data)
-    if data.log_level > 0
+    if data.log_level >= 2
         @printf("%3d %5d ", data.iteration, round(Int, data.elapsed_time))
         print("[$(data.lower_bound) $(length(data.best_arc_set))] ")
         println("$(data.num_cycles) $(data.solution.status) $(data.solution.objval) $(data.objbound)")
