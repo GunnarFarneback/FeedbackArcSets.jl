@@ -17,7 +17,7 @@ heuristic_methods = [dfs_feedback_arc_set,
 @testset "path graphs" begin
     for n = 0:10
         g = path_digraph(n)
-        exact = find_feedback_arc_set(g, log_level = 0)
+        exact = find_feedback_arc_set(g; log_level = 0, split = false)
         @test exact.lower_bound == length(exact.feedback_arc_set) == 0
         for f in heuristic_methods
             @test isempty(f(g))
@@ -30,7 +30,7 @@ end
 @testset "cycle graphs" begin
     for n = 2:10
         g = cycle_digraph(n)
-        exact = find_feedback_arc_set(g, log_level = 0)
+        exact = find_feedback_arc_set(g; log_level = 0, split = false)
         @test exact.lower_bound == length(exact.feedback_arc_set) == 1
         for f in heuristic_methods
             @test length(f(g)) == 1
@@ -47,7 +47,7 @@ end
 @testset "complete graphs" begin
     for n = 2:10
         g = complete_digraph(n)
-        exact = find_feedback_arc_set(g, log_level = 0)
+        exact = find_feedback_arc_set(g, log_level = 0, split = false)
         N = n * (n - 1) ÷ 2
         @test exact.lower_bound == length(exact.feedback_arc_set) == N
         @test is_feedback_arc_set(g, exact.feedback_arc_set)
@@ -86,7 +86,7 @@ end
 @testset "tournament graphs" begin
     for n = 3:24
         g = tournament_graph(n)
-        exact = find_feedback_arc_set(g, log_level = 0)
+        exact = find_feedback_arc_set(g, log_level = 0, split = false)
         @test exact.lower_bound == length(exact.feedback_arc_set)
         @test is_feedback_arc_set(g, exact.feedback_arc_set)
         for f in heuristic_methods
@@ -110,7 +110,7 @@ end
 @testset "go game graphs" begin
     for id in [1, 3, 7, 11, 12, 13, 15, 95, 127, 1111, 33983]
         g = go_game_graph(id)
-        exact = find_feedback_arc_set(g, log_level = 0)
+        exact = find_feedback_arc_set(g, log_level = 0, split = false)
         @test exact.lower_bound == length(exact.feedback_arc_set)
         @test is_feedback_arc_set(g, exact.feedback_arc_set)
         for f in heuristic_methods
@@ -127,12 +127,14 @@ end
 @testset "acyclic graphs" begin
     for id in [1, 3, 7, 11, 12, 13, 15, 95, 127, 1111, 33983]
         g = go_game_graph(id)
-        for (i, j) in find_feedback_arc_set(g, log_level = 0).feedback_arc_set
+        for (i, j) in find_feedback_arc_set(g, log_level = 0, split = false).feedback_arc_set
             rem_edge!(g, i, j)
         end
-        exact = find_feedback_arc_set(g, log_level = 0)
-        @test exact.lower_bound == 0
-        @test isempty(exact.feedback_arc_set)
+        for split in (false, true)
+            exact = find_feedback_arc_set(g; log_level = 0, split)
+            @test exact.lower_bound == 0
+            @test isempty(exact.feedback_arc_set)
+        end
         for f in heuristic_methods
             @test isempty(f(g))
         end
@@ -149,7 +151,7 @@ end
     for g in graphs
         reference = -1
         for (solver, solver_options) in solvers
-            result = find_feedback_arc_set(g, log_level = 0;
+            result = find_feedback_arc_set(g; log_level = 0, split = false,
                                            solver, solver_options)
             if reference < 0
                 reference = result.lower_bound
@@ -161,7 +163,8 @@ end
         end
     end
     @test_throws ErrorException find_feedback_arc_set(go_game_graph(1),
-                                                      solver = "")
+                                                      solver = "",
+                                                      split = false)
 end
 
 @testset "self-loops" begin
@@ -172,12 +175,17 @@ end
     add_edge!(g, 2, 1)
     add_edge!(g, 1, 1)
     add_edge!(g, 3, 3)
-    @test_throws ErrorException find_feedback_arc_set(g)
-    @test find_feedback_arc_set(g, self_loops = "ignore", log_level = 0).feedback_arc_set == [(1, 2)]
-    @test find_feedback_arc_set(g, self_loops = "ignore", log_level = 0).lower_bound == 1
-    @test Set(find_feedback_arc_set(g, self_loops = "include", log_level = 0).feedback_arc_set) == Set([(1, 2), (1, 1), (3, 3)])
-    @test find_feedback_arc_set(g, self_loops = "include", log_level = 0).lower_bound == 3
-    @test_throws ErrorException find_feedback_arc_set(g, self_loops = "")
+    @test_throws ErrorException find_feedback_arc_set(g, split = false)
+    @test find_feedback_arc_set(g, self_loops = "ignore", log_level = 0,
+                                split = false).feedback_arc_set == [(1, 2)]
+    @test find_feedback_arc_set(g, self_loops = "ignore", log_level = 0,
+                                split = false).lower_bound == 1
+    @test Set(find_feedback_arc_set(g, self_loops = "include", log_level = 0,
+                                    split = false).feedback_arc_set) == Set([(1, 2), (1, 1), (3, 3)])
+    @test find_feedback_arc_set(g, self_loops = "include", log_level = 0,
+                                split = false).lower_bound == 3
+    @test_throws ErrorException find_feedback_arc_set(g, self_loops = "",
+                                                      split = false)
     dfs_fas = dfs_feedback_arc_set(g)
     greedy_fas = greedy_feedback_arc_set(g)
     pagerank_fas = pagerank_feedback_arc_set(g)
