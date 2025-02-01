@@ -76,7 +76,7 @@ end
 # Remove multiple edges from the subgraph.
 function deactivate_edges!(graph::EdgeSubGraph, edges::Vector{Int})
     for edge in edges
-        deactive_edge!(graph, edge)
+        deactivate_edge!(graph, edge)
     end
     return
 end

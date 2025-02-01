@@ -3,7 +3,7 @@ using FeedbackArcSets: find_feedback_arc_set, dfs_feedback_arc_set,
                        greedy_feedback_arc_set, pagerank_feedback_arc_set,
                        is_feedback_arc_set
 using Graphs: path_digraph, cycle_digraph, complete_digraph, SimpleDiGraph,
-              add_edge!, rem_edge!
+              add_edge!, rem_edge!, edges
 using GoGameGraphs: go_game_graph
 import HiGHS
 
@@ -192,4 +192,24 @@ end
     @test (1, 1) in dfs_fas && (3, 3) in dfs_fas
     @test (1, 1) in greedy_fas && (3, 3) in greedy_fas
     @test (1, 1) in pagerank_fas && (3, 3) in pagerank_fas
+end
+
+@testset "initial solution" begin
+    g = go_game_graph(1111)
+    solvers = [("cbc", Dict()),
+               ("highs", Dict()),
+               ("jump", Dict("optimizer" => HiGHS.Optimizer))]
+    for (solver, solver_options) in solvers
+        fas = find_feedback_arc_set(g; log_level = 0, split = false,
+                                    solver, solver_options).feedback_arc_set
+        half_fas = fas[1:(end ÷ 2)]
+        arbitrary_edges = [(e.src, e.dst)
+                           for e in collect(edges(g))[1:length(fas)]]
+        for initial_arc_set in (fas, half_fas, empty(fas), arbitrary_edges)
+            fas2 = find_feedback_arc_set(g; log_level = 0, split = false,
+                                         solver, solver_options,
+                                         initial_arc_set).feedback_arc_set
+            @test length(fas) == length(fas2)
+        end
+    end
 end
