@@ -107,6 +107,13 @@ solution.
   increased if the IP solver does not find a useful solution in the
   allowed time. Defaults to 10 seconds.
 
+* `initial_arc_set`: Starting arc set as a vector of edges, where
+  each edge is represented by a tuple of two `Int`s. This does not
+  have to be a complete feedback arc set. This is used to guide the
+  solution and might improve the solution speed. Edges which are not
+  present in the graph are silently ignored. Default is an empty
+  vector.
+
 * `log_level`: Amount of verbosity during search. 0 is maximally
   quiet. Level 1 prints results of static analysis and if there are
   multiple searches a summary of those. Level 2 adds printing of
@@ -125,7 +132,7 @@ following fields:
 * `lower_bound`: Lower bound for feedback arc set.
 
 * `feedback_arc_set`: Vector of the edges in the smallest found
-  feedback arc set.
+  feedback arc set. Each edge is represented as a tuple of two `Int`s.
 
 * `internals`: Dict containing a variety of information about the
   search. If graph splitting is active, this information only applies
@@ -136,6 +143,7 @@ function find_feedback_arc_set(graph;
                                self_loops = "error",
                                split = true,
                                time_limit = typemax(Int),
+                               initial_arc_set = Tuple{Int, Int}[],
                                log_level = 2,
                                kwargs...)
     self_loops ∈ ["error", "ignore", "include"] ||
@@ -154,7 +162,9 @@ function find_feedback_arc_set(graph;
     solution = FeedbackArcSet(0, Tuple{Int, Int}[], Dict{String, Any}())
 
     if split == false
+        initial_edges = initial_arc_set_to_edges(edge_graph, initial_arc_set)
         solution = find_feedback_arc_set_ip(edge_graph; time_limit,
+                                            initial_solution = initial_edges,
                                             log_level, kwargs...)
     else
         start_time = time()
@@ -180,8 +190,11 @@ function find_feedback_arc_set(graph;
             if log_level >= 1
                 println("  Analyzing component $i of size $(component_sizes[i]):")
             end
+            initial_edges = initial_arc_set_to_edges(edge_graph,
+                                                     initial_arc_set)
             solution = find_feedback_arc_set_ip(edge_graph;
                                                 time_limit = time_quota,
+                                                initial_solution = initial_edges,
                                                 log_level, kwargs...)
             if log_level >= 1
                 lb = solution.lower_bound
@@ -203,6 +216,22 @@ function find_feedback_arc_set(graph;
     return solution
 end
 
+# Convert edges represented as tuples to the corresponding Int in the
+# edge graph. Additionally this drops any edges which are not present
+# and active in the edge graph.
+function initial_arc_set_to_edges(edge_graph, initial_arc_set)
+    initial_edges = Int[]
+    for (v, w) in initial_arc_set
+        for e in outedges(edge_graph, v)
+            if edge_destination(edge_graph, e) == w
+                push!(initial_edges, e)
+                break
+            end
+        end
+    end
+    return initial_edges
+end
+
 function find_feedback_arc_set_ip(graph::EdgeSubGraph;
                                   max_iterations = typemax(Int),
                                   time_limit = typemax(Int),
@@ -210,6 +239,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
                                   solver_options = Dict{String, Any}(),
                                   solver_time_limit = 10,
                                   log_level = 2,
+                                  initial_solution = Int[],
                                   iteration_callback = print_iteration_data)
     O = OptProblem(graph)
 
@@ -227,7 +257,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
     solution = nothing
     
     start_time = time()
-    best_arc_set = dfs_feedback_arc_set(graph)
+    best_arc_set = complement_initial_solution!(graph, initial_solution)
     local arc_set
     
     for iteration = 1:max_iterations
@@ -239,7 +269,9 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
             break
         end
 
-        solution = solve_IP(O; solver, solver_options, solver_time,
+        best_solution = arcs_to_solution(graph, best_arc_set)
+        solution = solve_IP(O; solver, solver_options,
+                            initial_solution = best_solution, solver_time,
                             log_level = log_level - 2)
         
         objbound = solution.attrs[:objbound]
@@ -303,6 +335,27 @@ function print_iteration_data(data)
     end
     return true
 end
+
+function arcs_to_solution(graph, arcs)
+    solution = zeros(Int, ne(graph.parent))
+    for arc in arcs
+        solution[arc] = 1
+    end
+    return solution
+end
+
+# The initial solution may not be a complete feedback arc set,
+# especially the default empty set. This function makes it complete.
+function complement_initial_solution!(graph, arc_set)
+    saved_edges = copy(edge_list(graph))
+    for edge in arc_set
+        deactivate_edge!(graph, edge)
+    end
+    append!(arc_set, dfs_feedback_arc_set(graph))
+    set_active_edges!(graph, saved_edges)
+    return arc_set
+end
+
 
 # Extract the possibly partial feedback arc set from the solution and
 # find some additional cycles if it is incomplete.
