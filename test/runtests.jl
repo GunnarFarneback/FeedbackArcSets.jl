@@ -213,3 +213,17 @@ end
         end
     end
 end
+
+@testset "initial cycles" begin
+    g = go_game_graph(33983)
+    fas = find_feedback_arc_set(g; log_level = 0, max_iterations = 1)
+    # Should this test fail, a larger graph will be needed to make the
+    # next test meaningful.
+    @test fas.lower_bound < length(fas.feedback_arc_set)
+    fas = find_feedback_arc_set(g; log_level = 0)
+    fas2 = find_feedback_arc_set(g; log_level = 0,
+                                 initial_arc_set = fas.feedback_arc_set,
+                                 initial_cycles = fas.cycles,
+                                 max_iterations = 1)
+    @test fas2.lower_bound == length(fas2.feedback_arc_set)
+end

@@ -44,7 +44,7 @@ documentation for more information.
 mutable struct FeedbackArcSet
     lower_bound::Int
     feedback_arc_set::Vector{Tuple{Int, Int}}
-    internals::Dict{String, Any}
+    cycles::Vector{Vector{Int}}
 end
 
 function Base.show(io::IO, x::FeedbackArcSet)
@@ -54,6 +54,16 @@ function Base.show(io::IO, x::FeedbackArcSet)
     else
         println(io, "Feedback arc set with lower bound $(x.lower_bound) and upper bound $(upper_bound).")
     end
+end
+
+# Corresponding struct used internally, returned from
+# `find_feedback_arc_set_ip`. The difference is that edges are
+# represented by integers instead of two-tuples and that cycles are
+# represented by edges instead of vertices.
+mutable struct InternalFeedbackArcSet
+    lower_bound::Int
+    feedback_arc_set::Vector{Int}
+    cycles::Vector{Vector{Int}}
 end
 
 """
@@ -114,6 +124,10 @@ solution.
   present in the graph are silently ignored. Default is an empty
   vector.
 
+* `initial_cycles`: Initial set of cycles to use as contraints by the
+  IP solver. Each cycle is given as a vector of vertices. Invalid
+  cycles are silently dropped. Default is no initial cycles.
+
 * `log_level`: Amount of verbosity during search. 0 is maximally
   quiet. Level 1 prints results of static analysis and if there are
   multiple searches a summary of those. Level 2 adds printing of
@@ -144,6 +158,7 @@ function find_feedback_arc_set(graph;
                                split = true,
                                time_limit = typemax(Int),
                                initial_arc_set = Tuple{Int, Int}[],
+                               initial_cycles = Vector{Int}[],
                                log_level = 2,
                                kwargs...)
     self_loops ∈ ["error", "ignore", "include"] ||
@@ -159,13 +174,21 @@ function find_feedback_arc_set(graph;
     end
 
     edge_graph = EdgeSubGraph(graph)
-    solution = FeedbackArcSet(0, Tuple{Int, Int}[], Dict{String, Any}())
+    solution = FeedbackArcSet(0, Tuple{Int, Int}[], Vector{Int}[])
 
     if split == false
         initial_edges = initial_arc_set_to_edges(edge_graph, initial_arc_set)
-        solution = find_feedback_arc_set_ip(edge_graph; time_limit,
-                                            initial_solution = initial_edges,
-                                            log_level, kwargs...)
+        initial_edge_cycles =
+            vertex_cycles_to_edge_cycles(edge_graph, initial_cycles)
+        solution_ = find_feedback_arc_set_ip(edge_graph; time_limit,
+                                             initial_solution = initial_edges,
+                                             initial_cycles = initial_edge_cycles,
+                                             log_level, kwargs...)
+        solution.lower_bound = solution_.lower_bound
+        solution.feedback_arc_set = vertex_tuple.(Ref(edge_graph),
+                                                  solution_.feedback_arc_set)
+        solution.cycles = edge_cycles_to_vertex_cycles(edge_graph,
+                                                       solution_.cycles)
     else
         start_time = time()
         components = Vector{Int}[]
@@ -192,17 +215,25 @@ function find_feedback_arc_set(graph;
             end
             initial_edges = initial_arc_set_to_edges(edge_graph,
                                                      initial_arc_set)
-            solution = find_feedback_arc_set_ip(edge_graph;
-                                                time_limit = time_quota,
-                                                initial_solution = initial_edges,
-                                                log_level, kwargs...)
+            initial_edge_cycles =
+                vertex_cycles_to_edge_cycles(edge_graph, initial_cycles)
+            component_solution =
+                find_feedback_arc_set_ip(edge_graph;
+                                         time_limit = time_quota,
+                                         initial_solution = initial_edges,
+                                         initial_cycles = initial_edge_cycles,
+                                         log_level, kwargs...)
             if log_level >= 1
-                lb = solution.lower_bound
-                ub = length(solution.feedback_arc_set)
+                lb = component_solution.lower_bound
+                ub = length(component_solution.feedback_arc_set)
                 println("    Bounds: [$(lb), $(ub)]")
             end
-            lower_bound += solution.lower_bound
-            append!(feedback_arcs, solution.feedback_arc_set)
+            lower_bound += component_solution.lower_bound
+            append!(feedback_arcs, vertex_tuple.(Ref(edge_graph),
+                                                 component_solution.feedback_arc_set))
+            append!(solution.cycles,
+                    edge_cycles_to_vertex_cycles(edge_graph,
+                                                 component_solution.cycles))
         end
         solution.lower_bound = lower_bound
         solution.feedback_arc_set = feedback_arcs
@@ -240,6 +271,7 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
                                   solver_time_limit = 10,
                                   log_level = 2,
                                   initial_solution = Int[],
+                                  initial_cycles = Vector{Int}[],
                                   iteration_callback = print_iteration_data)
     O = OptProblem(graph)
 
@@ -248,10 +280,14 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
 
     # If no cycles found, return the trivial optimum.
     if isempty(cycles)
-        return FeedbackArcSet(0, Tuple{Int, Int}[], Dict{String, Any}())
+        return InternalFeedbackArcSet(0, Tuple{Int, Int}[], Vector{Int}[])
     end
 
-    constrain_cycles!(O, cycles)
+    if isempty(initial_cycles)
+        constrain_cycles!(O, cycles)
+    else
+        constrain_cycles!(O, initial_cycles)
+    end
 
     lower_bound = 1
     solution = nothing
@@ -319,12 +355,8 @@ function find_feedback_arc_set_ip(graph::EdgeSubGraph;
         constrain_cycles!(O, cycles)
     end
 
-    return FeedbackArcSet(ceil(Int, lower_bound - 0.01),
-                          vertex_tuple.(graph, best_arc_set),
-                          Dict("O" => O, "edge_graph" => graph,
-                               "last_arcs" => arc_set,
-                               "last_cycles" => cycles,
-                               "last_solution" => solution))
+    return InternalFeedbackArcSet(ceil(Int, lower_bound - 0.01),
+                                  best_arc_set, extract_cycles(O))
 end
 
 function print_iteration_data(data)

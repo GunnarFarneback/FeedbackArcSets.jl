@@ -1,6 +1,7 @@
 using SparseArrays: SparseArrays, SparseVector, spzeros
 
 struct CycleConstraint
+    cycle::Vector{Int}
     A::SparseVector
     lb::Int
     ub::Int
@@ -73,8 +74,12 @@ function constrain_cycles!(O::OptProblem, cycles)
         end
         lb = 1
         ub = length(cycle)
-        push!(O.cycle_constraints, CycleConstraint(A, lb, ub))
+        push!(O.cycle_constraints, CycleConstraint(cycle, A, lb, ub))
     end
 
     return length(O.cycle_constraints) - previous_number_of_constraints
+end
+
+function extract_cycles(O::OptProblem)
+    return Vector{Int}[c.cycle for c in O.cycle_constraints]
 end

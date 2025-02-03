@@ -121,3 +121,45 @@ end
 end
 
 Base.IteratorSize(::Type{OutEdges}) = Base.SizeUnknown()
+
+# Convert cycles between vertex and edge lists.
+function vertex_cycle_to_edge_cycle(graph::EdgeSubGraph,
+                                    cycle::Vector{<:Integer})
+    edge_cycle = Int[]
+    v = last(cycle)
+    for (i, w) in enumerate(cycle)
+        for edge in outedges(graph, v)
+            if edge_destination(graph, edge) == w
+                push!(edge_cycle, edge)
+                break
+            end
+        end
+        if length(edge_cycle) != i
+            empty!(edge_cycle)
+            break
+        end
+        v = w
+    end
+    return edge_cycle
+end
+
+function edge_cycle_to_vertex_cycle(graph::EdgeSubGraph,
+                                    cycle::Vector{<:Integer})
+    return [edge_destination(graph, v) for v in cycle]
+end
+
+function vertex_cycles_to_edge_cycles(graph::EdgeSubGraph,
+                                      cycles::Vector{<:Vector{<:Integer}})
+    edge_cycles = Vector{Int}[]
+    for cycle in cycles
+        edge_cycle = vertex_cycle_to_edge_cycle(graph, cycle)
+        isempty(edge_cycle) || push!(edge_cycles, edge_cycle)
+    end
+    return edge_cycles
+end
+
+function edge_cycles_to_vertex_cycles(graph::EdgeSubGraph,
+                                      cycles::Vector{<:Vector{<:Integer}})
+    return [edge_cycle_to_vertex_cycle(graph, cycle)
+            for cycle in cycles]
+end
