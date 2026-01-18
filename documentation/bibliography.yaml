@@ -1,0 +1,172 @@
+# baharev_minimum_feedback_arc_set.pdf
+baharev2021:
+  type: article
+  author:
+    - Baharev, Ali
+    - Schichl, Hermann
+    - Neumaier, Arnold
+    - Achterberg, Tobias
+  title: An exact method for the minimum feedback arc set problem
+  url:
+    value: https://arnold-neumaier.at/ms/feedback.pdf
+    date: 2025-03-07
+  parent:
+    type: periodical
+    title: Journal of Experimental Algorithmics (JEA)
+    volume: 26
+    page-range: 1-28
+    date: 2021
+    publisher:
+      name: ACM New York
+      location: NY, USA
+
+baharev-sdopt-tearing:
+  type: repository
+  author: Baharev, Ali
+  title: sdopt-tearing
+  url:
+    value: https://github.com/baharev/sdopt-tearing
+    date: 2025-03-07
+
+# cavallaro2023.pdf
+cavallaro2023:
+  type: article
+  author:
+    - Cavallaro, Claudia
+    - Cutello, Vincenzo
+    - Pavone, Mario
+  title: Effective Heuristics for Finding Small Minimal Feedback Arc Set Even for Large Graphs
+  url:
+    value: https://ceur-ws.org/Vol-3606/paper56.pdf
+    date: 2025-03-07
+  parent:
+    type: proceedings
+    title: The 2nd Italian Conference on Big Data and Data Science
+    date: 2023-09-11
+    location: Naples, Italy
+
+# Cavallaro2024.pdf
+cavallaro2024:
+  type: article
+  author:
+    - Cavallaro, Claudia
+    - Cutello, Vincenzo
+    - Pavone, Mario
+  title: Efficient Heuristics to Compute Minimal and Stable Feedback Arc Sets
+  url:
+    value: https://link.springer.com/article/10.1007/s10878-024-01209-8
+    date: 2025-07-08
+  parent:
+    type: periodical
+    title: Journal of Combinatorial Optimization
+    date: 2024-10-15
+    volume: 48
+    page-total: 30
+  serial-number:
+    doi: "10.1007/s10878-024-01209-8"
+    issn: "1573-2886"
+
+dasdan-graph-benchmarks:
+  type: repository
+  author: Dasdan, Ali
+  title: graph-benchmarks
+  url:
+    value: https://github.com/alidasdan/graph-benchmarks
+    date: 2025-03-07
+
+# geladaris2023.pdf
+# Data: https://law.di.unimi.it/webdata/wordassociation-2011/
+geladaris2023:
+  type: article
+  author:
+    - Geladaris, Vasileios
+    - Lionakis, Panagiotis
+    - Tollis, Ioannis
+  title: Effective Computation of a Feedback Arc Set Using PageRank
+  url:
+    value: https://www.jgaa.info/index.php/jgaa/article/download/paper641/2317
+    date: 2025-03-07    
+  parent:
+    type: periodical
+    title: Journal of Graph Algorithms and Applications
+    volume: 27
+    issue: 8
+    page-range: 737-757
+    date: 2023
+
+# Hecht_2021_7995.pdf
+hecht2021:
+  type: article
+  author:
+    - Hecht, Michael
+    - Gonciarz, Krzysztof
+    - Horvát, Szabolcs
+  title: Tight localizations of feedback sets
+  url:
+    value: https://publications.mpi-cbg.de/Hecht_2021_7995.pdf
+    date: 2025-03-21
+  parent:
+    type: periodical
+    title: Journal of Experimental Algorithmics (JEA)
+    volume: 26
+    issue: 1
+    page-range: 1-19
+    date: 2021
+    publisher:
+      name: ACM New York
+      location: NY, USA
+
+# SCORES24_paper_19.pdf
+pustoslemsek:
+  type: report
+  author:
+    - Pustoslemšek, Jure
+    - Črne, Ema
+    - Rihter, Nejc
+  title: Improvement and Evaluation of a Heuristic Method for the Minimal Feedback Arc Set Problem
+  url:
+    value: https://www.scores.si/assets/papers/2024/SCORES24_paper_19.pdf
+    date: 2025-07-14
+
+# p133-simpson.pdf
+# Data: https://law.di.unimi.it/datasets.php
+simpson2016:
+  type: article
+  author:
+    - Simpson, Michael
+    - Srinivasan, Venkatesh
+    - Thomo, Alex
+  title: Efficient computation of feedback arc set at web-scale
+  url:
+    value: https://vldb.org/pvldb/vol10/p133-simpson.pdf
+    date: 2025-03-07
+  parent:
+    type: periodical
+    title: Proceedings of the VLDB Endowment
+    volume: 10
+    issue: 3
+    page-range: 133-144
+    date: 2016
+    publisher: VLDB Endowment
+
+wikipedia-tournament:
+  type: Web
+  title: Tournament (graph theory) --- Wikipedia, The Free Encyclopedia
+  url:
+    value: https://en.wikipedia.org/w/index.php?title=Tournament_(graph_theory)&oldid=1270556970
+    date: 2025-03-07
+
+younger1963:
+  type: article
+  author: Younger, D
+  title: Minimum Feedback Arc Sets for a Directed Graph
+  serial-number:
+    doi: "10.1109/TCT.1963.1082116"
+  parent:
+    type: periodical
+    title: IEEE Transactions on Circuit Theory
+    volume: 10
+    issue: 2
+    page-range: 238-245
+    date: 1963-06-30
+    publisher: IEEE

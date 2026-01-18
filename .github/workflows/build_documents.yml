@@ -1,0 +1,58 @@
+# Compile Typst documents and publish as PDFs on GitHub Pages.
+name: Build documents
+
+on:
+  push:
+    branches:
+      - master
+      - build_typst
+
+# Overwritten by the individual jobs
+permissions: {}
+
+jobs:
+  build-documents:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v5
+    - uses: typst-community/setup-typst@v4
+      with:
+        typst-version: 0.14.2
+
+    - name: Create output dir
+      # Note: `github-pages-temp` should not exist yet
+      run: mkdir github-pages-temp
+
+    - name: Build theory
+      run: typst compile documentation/theory.typ github-pages-temp/theory.pdf
+
+    - name: Build small_scc_graphs
+      run: typst compile documentation/small_scc_graphs.typ github-pages-temp/small_scc_graphs.pdf
+
+    - name: Upload PDF files as artifacts
+      id: deployment
+      uses: actions/upload-pages-artifact@v4
+      with:
+        path: github-pages-temp
+
+  # See https://github.com/actions/deploy-pages
+  deploy-documents:
+    needs: build-documents
+
+    permissions:
+      pages: write
+      id-token: write
+
+    # Deploy to the github-pages environment
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
